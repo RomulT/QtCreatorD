@@ -2710,7 +2710,7 @@ def qdump__QScriptValue(d, value):
     #  ref           QBasicAtomicInt
     #  stringValue   QString
     #  type          QScriptValuePrivate::Type: { JavaScriptCore, Number, String }
-    #d.putEmptyValue()
+    ##d.putEmptyValue()
     dd = value["d_ptr"]["d"]
     if d.isNull(dd):
         d.putValue("(invalid)")
@@ -2736,7 +2736,7 @@ def qdump__QScriptValue(d, value):
     #isObject = False
     #className = "UNKNOWN NAME"
     #if isCell:
-    #    # isCell() && asCell()->isObject();
+    ##    # isCell() && asCell()->isObject();
     #    # in cell: m_structure->typeInfo().type() == ObjectType;
     #    cellType = d.lookupType("QTJSC::JSCell").pointer()
     #    cell = payload.cast(cellType).dereference()
@@ -2940,31 +2940,145 @@ def qdump__Eigen__Matrix(d, value):
 
 #######################################################################
 #
-# D
+# D language
 #
 #######################################################################
 
 def cleanDType(type):
-    return d.stripClassTag(str(type)).replace("uns long long", "string")
+    return stripClassTag(str(type)).replace("uns long long", "string")
+
+def qdump__Array_char(d, value):
+    n = value["length"]
+    p = value["ptr"]
+    d.putType("string")
+    if n==0:
+        if d.isNull(p):
+            d.putValue("null")
+        else:
+            d.putValue("<empty>")
+    else:
+        d.putValue(d.encodeCharArray(p), Hex2EncodedUtf8)
+    d.putNumChild(2)
+    if d.isExpanded():
+      with Children(d):
+        with SubItem(d, "length"):
+            d.putItem(n)
+        with SubItem(d, "ptr"):
+            d.putType("char*")
+            # TODO: действительно ли здесь должны отображать 0x0?
+            if d.isNull(p):
+                d.putValue("0x0");
+            else:
+                d.putValue("@%s" % p.address)
+            d.putNumChild(n)
+            if d.isExpanded():
+                innerType = p.dereference().type
+                with Children(d, n, childType="char"):
+                    for i in d.childRange():
+                      with SubItem(d,i):
+                        d.putType(innerType)
+                        d.putValue((p+i).dereference())
+                        d.putNumChild(0)
+
+def qdump__Array_dchar(d, value):
+    n = value["length"]
+    p = value["ptr"]
+    d.putType("dstring")
+    if n==0:
+        if d.isNull(p):
+            d.putValue("null")
+        else:
+            d.putValue("<empty>")
+    else:
+        d.putValue(d.encodeChar4Array(p), Hex8EncodedLittleEndian)
+    d.putNumChild(2)
+    if d.isExpanded():
+      with Children(d):
+        with SubItem(d, "length"):
+            d.putItem(n)
+        with SubItem(d, "ptr"):
+            d.putType("dchar*")
+            if d.isNull(p):
+                d.putValue("0x0");
+            else:
+                d.putValue("@%s" % p.address)
+            d.putNumChild(n)
+            if d.isExpanded():
+                innerType = p.dereference().type
+                with Children(d, n, childType="dchar"):
+                    for i in d.childRange():
+                      with SubItem(d,i):
+                        d.putType(innerType)
+                        d.putValue((p+i).dereference())
+                        d.putNumChild(0)
+
+def qdump__Array_wchar_t(d, value):
+    n = value["length"]
+    p = value["ptr"]
+    d.putType("wstring")
+    if n==0:
+        if d.isNull(p):
+            d.putValue("null")
+        else:
+            d.putValue("<empty>")
+    else:
+        d.putValue(d.encodeChar2Array(p), Hex4EncodedLittleEndian)
+    d.putNumChild(2)
+    if d.isExpanded():
+      with Children(d):
+        with SubItem(d, "length"):
+            d.putItem(n)
+        with SubItem(d, "ptr"):
+            d.putType("wchar*")
+            if d.isNull(p):
+                d.putValue("0x0");
+            else:
+                d.putValue("@%s" % p.address)
+            d.putNumChild(n)
+            if d.isExpanded():
+                innerType = p.dereference().type
+                with Children(d, n, childType="wchar"):
+                    for i in d.childRange():
+                      with SubItem(d,i):
+                        d.putType(innerType)
+                        d.putValue((p+i).dereference())
+                        d.putNumChild(0)
+
+    #d.putType("XXX_" + cleanDType(value.type)[7:])
+    #for xx in value:
+    #warn("Warn type:%s " % p.type)
+    #warn("Warn p.dereference:%s " % p.dereference())
+    #warn("Warn p.dereferenceValue:%s " % p.dereferenceValue())
+    #warn("Warn newValue:%s " % d.createValue(p.address + 1, "char"))
+    #warn("Warn p.address:%s " % p.address)
+    #warn("Warn value.address:%s " % value.address)
+    #warn("Warn d.dereferenceValue(p):%s " % d.dereferenceValue(p))
+    #warn("Warn d.dereferenceValue(p.address):%s " % d.dereferenceValue(p.address))
+    #warn("Warn cleanAddress(p.address):%s " % cleanAddress(p.address))
 
 def qdump_Array(d, value):
     n = value["length"]
     p = value["ptr"]
-    t = cleanDType(value.type)[7:]
-    d.putType("%s[%d]" % (t, n))
+    #t = cleanDType(value.type)[7:]
+    t = stripClassTag(str(value.type))[7:]
+    warn("Inner Type: %s" % t)
     if t == "char":
-        d.putValue(encodeCharArray(p, 100), Hex2EncodedLocal8Bit)
-        d.putNumChild(0)
+        qdump__Array_char(d, value)
+    elif t == "wchar_t":
+        qdump__Array_wchar_t(d, value)
+    elif t == "dchar":
+        qdump__Array_dchar(d, value)
     else:
+        innerType = p.dereference().dereference().type
+        d.putType("%s[%d]" % (innerType, n))
+        warn("FirstValue %s" % p.dereference())    
         d.putEmptyValue()
         d.putNumChild(n)
-        innerType = p.type
+        #innerType = p.type
         if d.isExpanded():
             with Children(d, n, childType=innerType):
                 for i in range(0, n):
-                    d.putSubItem(i, p.dereference())
-                    p = p + 1
-
+                    d.putSubItem(i, (p+1).dereference())
 
 def qdump_AArray(d, value):
     #n = value["length"]
